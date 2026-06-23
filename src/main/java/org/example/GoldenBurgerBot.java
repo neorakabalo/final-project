@@ -27,8 +27,10 @@ import jakarta.mail.MessagingException;
 
 public class GoldenBurgerBot extends Application {
 
+    // תיקיית התמונות של הלוגו ושל פריטי התפריט.
     private static final String IMAGE_DIR = "src/assets/images/";
 
+    // רכיבי הצ'אט: אזור ההודעות, הגלילה ושורת הקלט של המשתמש.
     private VBox chatBox;
     private ScrollPane chatScroll;
 
@@ -38,28 +40,40 @@ public class GoldenBurgerBot extends Application {
     private HBox bottomBox;
     private Button langButton;
 
+    // התפריט בשפה הפעילה וההזמנה שנבנית לאורך השיחה.
     private MenuItem[] menu;
     private final OrderService orderList = new OrderService();
 
+    /*
+     * מצב השיחה קובע כיצד לפרש את הקלט הבא:
+     * 0 - בחירת משלוח/איסוף, 1 - שם, 2 - טלפון, 3 - בחירת דרך אימות,
+     * 4 - כתובת מייל, 5 - קוד אימות, 6 - כתובת משלוח, 7 - צפייה בתפריט.
+     * כל שלב תקין מעדכן את הערך ומעביר את המשתמש לשלב הבא.
+     */
     private int chatState = 0;
+    // פרטי הלקוח נשמרים בהדרגה ומשמשים בסיום ההזמנה ובקבלה.
     private String orderType = "";
     private String customerName = "";
     private String customerPhone = "";
     private String customerEmail = "";
     private String customerAddress = "";
 
+    // השירותים מפרידים בין ממשק הצ'אט לבין מייל, תפריט וקוד האימות הנוכחי.
     private final EmailService emailService = new EmailService();
     private final MenuService menuService = new MenuService();
     private final VerificationService verificationService = new VerificationService();
 
+    // קובע באיזו שפה יוצגו התפריט, הכפתורים והודעות הבוט.
     private boolean isEnglish = false;
 
     private final String GOLD = "#FFD700";
     private final String DARK_BG = "#1A1A1A";
     private final String CARD_BG = "#2B2B2B";
 
+    // נקודת הכניסה שמפעילה את מחזור החיים של JavaFX.
     public static void main(String[] args) { launch(args); }
 
+    // יוצרת בעת האתחול את קובץ העיצוב שבו משתמשים חלונות האפליקציה.
     private void createCustomCss() {
         try (PrintWriter writer = new PrintWriter(new FileWriter("style.css", false))) {
             writer.println(".scroll-pane { -fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 0; }");
@@ -73,10 +87,12 @@ public class GoldenBurgerBot extends Application {
         } catch (IOException e) {}
     }
 
+    // נטענת בתחילת האפליקציה ובהחלפת שפה, ומחליפה את מערך התפריט המוצג.
     private void loadMenu() {
         menu = menuService.getMenu(isEnglish);
     }
 
+    // נקראת מלחצן השפה; מאפסת את השיחה והסל ומתחילה שוב מבחירת סוג הזמנה.
     private void toggleLanguage() {
         isEnglish = !isEnglish;
         loadMenu();
@@ -98,6 +114,7 @@ public class GoldenBurgerBot extends Application {
     }
 
     @Override
+    // JavaFX קוראת למתודה פעם אחת כדי לבנות ולהציג את הממשק הראשי.
     public void start(Stage primaryStage) {
         createCustomCss();
         loadMenu();
@@ -183,6 +200,7 @@ public class GoldenBurgerBot extends Application {
         primaryStage.show();
     }
 
+    // מוסיפה בועת הודעה לצ'אט וממקמת אותה לפי השולח והשפה הפעילה.
     private void appendMessage(String msg, boolean isBot) {
         Label bubble = new Label(msg);
         bubble.setWrapText(true);
@@ -203,10 +221,12 @@ public class GoldenBurgerBot extends Application {
         chatBox.getChildren().add(row);
     }
 
+    // קיצור להוספת הודעה של הבוט; אינו מחזיר ערך אלא מעדכן את אזור הצ'אט.
     private void appendMessage(String msg) {
         appendMessage(msg, true);
     }
 
+    // מציגה בתחילת הזרימה את הבחירה בין משלוח לאיסוף עצמי.
     private void showTypeSelection() {
         topPane.getChildren().clear();
         Button del = new Button(isEnglish ? "Delivery" : "משלוח");
@@ -226,6 +246,7 @@ public class GoldenBurgerBot extends Application {
         }
     }
 
+    // נקראת לאחר לחיצה על סוג הזמנה, שומרת אותו ומעבירה למצב 1: קליטת שם.
     private void handleOrderTypeSelection(String type) {
         orderType = type;
         topPane.getChildren().clear();
@@ -236,6 +257,7 @@ public class GoldenBurgerBot extends Application {
         inputField.requestFocus();
     }
 
+    // נקראת בלחיצה על שליחה או Enter ומטפלת בקלט לפי מצב הצ'אט הנוכחי.
     private void processUserInput() {
         String input = inputField.getText().trim();
         if (input.isEmpty()) return;
@@ -249,6 +271,7 @@ public class GoldenBurgerBot extends Application {
         appendMessage(input, false);
         inputField.clear();
 
+        // מצבים 1–2 אוספים שם וטלפון; רק טלפון תקין מאפשר לעבור לבחירת אימות.
         if (chatState == 1) {
             customerName = input;
             appendMessage(isEnglish ? "Nice to meet you, " + customerName + "! What is your phone number?" : "נעים מאוד " + customerName + "! מה הטלפון?");
@@ -264,10 +287,12 @@ public class GoldenBurgerBot extends Application {
                 appendMessage(isEnglish ? "Phone number must be exactly 10 digits. Try again:" : "מספר הטלפון חייב להכיל בדיוק 10 ספרות (ללא אותיות או רווחים). אנא נסי שוב:");
             }
         } else if (chatState == 3) {
+            // המשתמש בוחר אם לקבל קוד במייל או לראות אותו בטלפון במצב הדגמה.
             if (input.equals("1") || input.equalsIgnoreCase("email") || input.equals("אימייל")) {
                 appendMessage(isEnglish ? "What is your email address?" : "מה כתובת האימייל שלך?");
                 chatState = 4;
             } else if (input.equals("2") || input.equalsIgnoreCase("phone") || input.equals("טלפון")) {
+                // אין חיבור SMS: נוצר קוד בן 6 ספרות והוא מוצג בצ'אט לצורכי הדגמה.
                 String verificationCode = verificationService.generateCode();
                 appendMessage(isEnglish
                         ? "SMS service is not connected yet. For demo purposes, your phone verification code is: " + verificationCode
@@ -280,6 +305,7 @@ public class GoldenBurgerBot extends Application {
                         : "נא להזין 1 לאימייל או 2 לטלפון:");
             }
         } else if (chatState == 4) {
+            // במסלול המייל נבדקת הכתובת, נוצר קוד ונשלח באמצעות שירות המייל.
             if (!ValidationUtils.isValidEmail(input)) {
                 appendMessage(isEnglish ? "Please enter a valid email address:" : "נא להזין כתובת אימייל תקינה:");
             } else {
@@ -295,6 +321,7 @@ public class GoldenBurgerBot extends Application {
                 }
             }
         } else if (chatState == 5) {
+            // הקלט מושווה לקוד שנשמר; הצלחה מנקה אותו וממשיכה להזמנה.
             if (verificationService.verify(input)) {
                 verificationService.clear();
                 continueAfterVerification();
@@ -302,6 +329,7 @@ public class GoldenBurgerBot extends Application {
                 appendMessage(isEnglish ? "Invalid verification code. Please try again:" : "קוד אימות שגוי. נא לנסות שוב:");
             }
         } else if (chatState == 6) {
+            // במשלוח בלבד נבדק שהכתובת מכילה רחוב מרשימת אזור השירות.
             boolean isJerusalem = false;
             try (BufferedReader br = new BufferedReader(new FileReader("streets.txt"))) {
                 String line;
@@ -319,6 +347,7 @@ public class GoldenBurgerBot extends Application {
         inputField.requestFocus();
     }
 
+    // נקראת אחרי אימות מוצלח: משלוח עובר לכתובת, ואיסוף עובר ישירות לתפריט.
     private void continueAfterVerification() {
         if (orderType.equals("משלוח") || orderType.equals("Delivery")) {
             appendMessage(isEnglish ? "Delivery address?" : "כתובת למשלוח?");
@@ -330,6 +359,7 @@ public class GoldenBurgerBot extends Application {
         }
     }
 
+    // נפתחת מקוד המנהל ומציגה הזמנות קודמות וסיכום הכנסות מקובץ CSV.
     private void openAdminDashboard() {
         Stage adminStage = new Stage();
         adminStage.setTitle(isEnglish ? "Admin Dashboard" : "מערכת ניהול - גולדן בורגר");
@@ -378,6 +408,7 @@ public class GoldenBurgerBot extends Application {
         adminStage.show();
     }
 
+    // מודיעה בצ'אט על הקופונים הזמינים לפני שהמשתמש מתחיל לבחור מנות.
     private void showCouponAnnouncement() {
         if (isEnglish) {
             appendMessage("✨ Special Offers in Cart! ✨\n\n• 10% off first order with code: GOLDEN10\n• Support special - 20% off with code: VIP\n\n(Enter the code at checkout)");
@@ -386,6 +417,7 @@ public class GoldenBurgerBot extends Application {
         }
     }
 
+    // מציגה את קטגוריות התפריט וכפתור הסל; נקראת גם לאחר שינוי בסל.
     private void showMenuCategories() {
         topPane.getChildren().clear();
         String[] cats = isEnglish ? new String[]{"Meals", "Burgers", "Sides", "Drinks"} : new String[]{"ארוחות", "המבורגרים", "תוספות", "שתייה"};
@@ -408,6 +440,7 @@ public class GoldenBurgerBot extends Application {
         topPane.getChildren().add(cart);
     }
 
+    // מציגה רק את הפריטים השייכים לקטגוריה שנבחרה ומאפשרת לבחור מנה.
     private void showItemsForCategory(String cat) {
         topPane.getChildren().clear();
         for (MenuItem item : menu) {
@@ -477,6 +510,7 @@ public class GoldenBurgerBot extends Application {
     }
 
     // === חלון פופ-אפ להצגת תמונה מוגדלת בלחיצה ארוכה ===
+    // נפתחת בלחיצה על תמונת פריט ומציגה תמונה ותיאור מוגדלים.
     private void showLargeImagePopup(MenuItem item) {
         if (item.imagePath == null || item.imagePath.isEmpty()) return;
         File imgFile = new File(item.imagePath);
@@ -514,6 +548,7 @@ public class GoldenBurgerBot extends Application {
         popupStage.show();
     }
 
+    // מוסיפה תוספות/שתייה ישירות, ולמנות עיקריות פותחת חלון התאמה לפני הוספה לסל.
     private void openCustomizationWindow(MenuItem item) {
         if (item.category.equals("שתייה") || item.category.equals("תוספות") || item.category.equals("Sides") || item.category.equals("Drinks")) {
             orderList.add(item.name, item.price);
@@ -610,6 +645,7 @@ public class GoldenBurgerBot extends Application {
         customStage.show();
     }
 
+    // מציגה את פריטי ההזמנה, מאפשרת הסרה/ניקוי, החלת קופון ומעבר לסיום.
     private void showCart() {
         Stage cartStage = new Stage();
         cartStage.setTitle(isEnglish ? "Cart - Golden Burger" : "סל קניות - גולדן בורגר");
@@ -663,6 +699,7 @@ public class GoldenBurgerBot extends Application {
         Label totalLabel = new Label();
         totalLabel.setStyle("-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 20px; -fx-padding: 10 0 20 0;");
 
+        // מחשב מחדש את הסכום לאחר שינוי פריט או הנחה ומעדכן את התצוגה.
         Runnable updateTotalDisplay = () -> {
             double finalPrice = orderList.calculateFinalTotal();
             if (orderList.getDiscount() > 0 && !orderList.isEmpty()) {
@@ -673,6 +710,7 @@ public class GoldenBurgerBot extends Application {
         };
         updateTotalDisplay.run();
 
+        // הקופון משנה את אחוז ההנחה בשירות ההזמנה; קוד שגוי מאפס את ההנחה.
         applyBtn.setOnAction(e -> {
             if (orderList.isEmpty()) return;
             String code = couponInput.getText().trim().toUpperCase();
@@ -719,6 +757,7 @@ public class GoldenBurgerBot extends Application {
             actionButtonsBox.getChildren().addAll(clearBtn, finishBtn);
         }
 
+        // בסיום נוצר מספר הזמנה אקראי והנתונים עוברים לשמירה ולהפקת קבלה.
         finishBtn.setOnAction(e -> {
             int orderId = 1000 + new Random().nextInt(9000);
             finishOrder(orderId);
@@ -730,6 +769,7 @@ public class GoldenBurgerBot extends Application {
         cartStage.show();
     }
 
+    // מסיימת הזמנה: שומרת CSV וקבלה, מציגה אישור ונועלת את המשך הקלט.
     private void finishOrder(int orderId) {
         double finalPrice = orderList.calculateFinalTotal();
 
@@ -759,6 +799,7 @@ public class GoldenBurgerBot extends Application {
         showReceiptPopup(orderId);
     }
 
+    // בונה ומחזירה את טקסט הקבלה עם פרטי הלקוח, הפריטים, ההנחה והסכום הסופי.
     private String buildReceiptString(int orderId) {
         String content = isEnglish ? "=== Golden Burger Receipt ===\n" : "=== קבלת הזמנה - גולדן בורגר ===\n";
         content += (isEnglish ? "Order ID: #" : "מספר הזמנה: #") + orderId + "\n" +
@@ -786,6 +827,7 @@ public class GoldenBurgerBot extends Application {
         return content;
     }
 
+    // מציגה בחלון נפרד את טקסט הקבלה שנבנה עבור ההזמנה שהסתיימה.
     private void showReceiptPopup(int orderId) {
         Stage receiptStage = new Stage();
         receiptStage.setTitle(isEnglish ? "Digital Receipt" : "קבלה דיגיטלית - גולדן בורגר");

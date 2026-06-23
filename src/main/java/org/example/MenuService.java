@@ -1,11 +1,13 @@
 package org.example;
 
-/** Provides the fixed menu in the selected display language. */
+/** מספק את נתוני התפריט הקבועים בשפה שנבחרה בממשק. */
 public class MenuService {
+    // נקראת בהפעלה ובהחלפת שפה ומחזירה מערך חדש של פריטי תפריט בשפה המתאימה.
     public MenuItem[] getMenu(boolean isEnglish) {
         return isEnglish ? createEnglishMenu() : createHebrewMenu();
     }
 
+    // בונה ומחזירה את גרסת התפריט באנגלית, כולל קטגוריות, מחירים ותמונות.
     private MenuItem[] createEnglishMenu() {
         return new MenuItem[]{
                 new MenuItem("Golden Burger Meal", 85.0, "Meals", "200g 100% Entrecote patty in our secret Golden Aioli.", "golden_meal.png"),
@@ -32,6 +34,7 @@ public class MenuService {
         };
     }
 
+    // בונה ומחזירה את גרסת התפריט בעברית עם אותם פריטים ומחירים.
     private MenuItem[] createHebrewMenu() {
         return new MenuItem[]{
                 new MenuItem("ארוחת גולדן בורגר", 85.0, "ארוחות", "כ-200 גר׳ של 100% קציצת אנטריקוט שמתבשלת ברוטב איולי גולדן.", "golden_meal.png"),

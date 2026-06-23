@@ -13,7 +13,10 @@ import java.util.Properties;
 
 public class EmailService {
 
+    // נקראת לאחר בחירת אימות במייל; שולחת לנמען את קוד האימות שנוצר בצ'אט.
+    // אינה מחזירה ערך, ובכשל מעבירה חריגה כדי שממשק הצ'אט יבקש לנסות שוב.
     public void sendVerificationCode(String recipientEmail, String code) throws MessagingException {
+        // פרטי ההתחברות נקראים ממשתני סביבה כדי שלא יישמרו בקוד המקור.
         String username = System.getenv("MAIL_USERNAME");
         String password = System.getenv("MAIL_PASSWORD");
 
@@ -21,6 +24,7 @@ public class EmailService {
             throw new IllegalStateException("MAIL_USERNAME and MAIL_PASSWORD must be set");
         }
 
+        // הגדרות SMTP של Gmail עם אימות וחיבור TLS.
         Properties properties = new Properties();
         properties.put("mail.smtp.host", "smtp.gmail.com");
         properties.put("mail.smtp.port", "587");
@@ -34,6 +38,7 @@ public class EmailService {
             }
         });
 
+        // בניית הודעת המייל עם הנמען וקוד האימות בן שש הספרות.
         Message message = new MimeMessage(session);
         message.setFrom(new InternetAddress(username));
         message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipientEmail));
