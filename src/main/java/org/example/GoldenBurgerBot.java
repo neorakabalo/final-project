@@ -27,6 +27,8 @@ import java.util.Random;
 
 public class GoldenBurgerBot extends Application {
 
+    private static final String IMAGE_DIR = "src/assets/images/";
+
     private VBox chatBox;
     private ScrollPane chatScroll;
 
@@ -144,7 +146,7 @@ public class GoldenBurgerBot extends Application {
 
         ImageView watermark = new ImageView();
         try {
-            File logoFile = new File("logo.png");
+            File logoFile = new File(IMAGE_DIR + "logo.png");
             if(logoFile.exists()) {
                 Image logoImage = new Image(logoFile.toURI().toString());
                 if (!logoImage.isError()) {
@@ -824,7 +826,7 @@ public class GoldenBurgerBot extends Application {
             this.price = price;
             this.category = category;
             this.description = description;
-            this.imagePath = imagePath;
+            this.imagePath = IMAGE_DIR + imagePath;
         }
     }
 
