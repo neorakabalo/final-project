@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Random;
+import java.security.SecureRandom;
+import jakarta.mail.MessagingException;
 
 public class GoldenBurgerBot extends Application {
 
@@ -46,7 +48,12 @@ public class GoldenBurgerBot extends Application {
     private String orderType = "";
     private String customerName = "";
     private String customerPhone = "";
+    private String customerEmail = "";
     private String customerAddress = "";
+    private String verificationCode = "";
+
+    private final EmailService emailService = new EmailService();
+    private final SecureRandom secureRandom = new SecureRandom();
 
     private boolean isEnglish = false;
 
@@ -128,6 +135,7 @@ public class GoldenBurgerBot extends Application {
 
         chatBox.getChildren().clear();
         chatState = 0;
+        verificationCode = "";
         orderList.clear();
         discount = 0.0;
 
@@ -300,25 +308,41 @@ public class GoldenBurgerBot extends Application {
             }
             if (input.length() == 10 && isAllDigits) {
                 customerPhone = input;
-                appendMessage(isEnglish ? "A code has been sent to your phone. Enter it here.\nYour code is: 1234" : "נשלח לך קוד לנייד, הזיני אותו.\nהקוד שלך הוא: 1234");
+                appendMessage(isEnglish ? "What is your email address?" : "מה כתובת האימייל שלך?");
                 chatState = 3;
             } else {
                 appendMessage(isEnglish ? "Phone number must be exactly 10 digits. Try again:" : "מספר הטלפון חייב להכיל בדיוק 10 ספרות (ללא אותיות או רווחים). אנא נסי שוב:");
             }
         } else if (chatState == 3) {
-            if (input.equals("1234")) {
+            if (!input.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+                appendMessage(isEnglish ? "Please enter a valid email address:" : "נא להזין כתובת אימייל תקינה:");
+            } else {
+                customerEmail = input;
+                verificationCode = String.format("%06d", secureRandom.nextInt(1_000_000));
+                try {
+                    emailService.sendVerificationCode(customerEmail, verificationCode);
+                    appendMessage(isEnglish ? "A verification code has been sent to your email. Enter it here:" : "קוד אימות נשלח לאימייל שלך. נא להזין אותו כאן:");
+                    chatState = 4;
+                } catch (MessagingException | IllegalStateException e) {
+                    verificationCode = "";
+                    appendMessage(isEnglish ? "The verification email could not be sent. Check the mail configuration and enter your email again:" : "לא ניתן היה לשלוח את קוד האימות. יש לבדוק את הגדרות המייל ולהזין שוב את כתובת האימייל:");
+                }
+            }
+        } else if (chatState == 4) {
+            if (input.equals(verificationCode)) {
+                verificationCode = "";
                 if(orderType.equals("משלוח") || orderType.equals("Delivery")) {
                     appendMessage(isEnglish ? "Delivery address?" : "כתובת למשלוח?");
-                    chatState = 4;
+                    chatState = 5;
                 } else {
                     showCouponAnnouncement();
                     showMenuCategories();
-                    chatState = 5;
+                    chatState = 6;
                 }
             } else {
-                appendMessage(isEnglish ? "Invalid code. Please enter 1234:" : "קוד אימות שגוי. אנא הקישי 1234:");
+                appendMessage(isEnglish ? "Invalid verification code. Please try again:" : "קוד אימות שגוי. נא לנסות שוב:");
             }
-        } else if (chatState == 4) {
+        } else if (chatState == 5) {
             boolean isJerusalem = false;
             try (BufferedReader br = new BufferedReader(new FileReader("streets.txt"))) {
                 String line;
@@ -329,7 +353,7 @@ public class GoldenBurgerBot extends Application {
                 customerAddress = input;
                 showCouponAnnouncement();
                 showMenuCategories();
-                chatState = 5;
+                chatState = 6;
             } else appendMessage(isEnglish ? "Not in our delivery area!" : "לא באזור שלנו!");
         }
 
