@@ -308,12 +308,30 @@ public class GoldenBurgerBot extends Application {
             }
             if (input.length() == 10 && isAllDigits) {
                 customerPhone = input;
-                appendMessage(isEnglish ? "What is your email address?" : "מה כתובת האימייל שלך?");
+                appendMessage(isEnglish
+                        ? "How would you like to receive the verification code? Enter 1 for Email or 2 for Phone:"
+                        : "איך תרצה לקבל את קוד האימות? יש להזין 1 לאימייל או 2 לטלפון:");
                 chatState = 3;
             } else {
                 appendMessage(isEnglish ? "Phone number must be exactly 10 digits. Try again:" : "מספר הטלפון חייב להכיל בדיוק 10 ספרות (ללא אותיות או רווחים). אנא נסי שוב:");
             }
         } else if (chatState == 3) {
+            if (input.equals("1") || input.equalsIgnoreCase("email") || input.equals("אימייל")) {
+                appendMessage(isEnglish ? "What is your email address?" : "מה כתובת האימייל שלך?");
+                chatState = 4;
+            } else if (input.equals("2") || input.equalsIgnoreCase("phone") || input.equals("טלפון")) {
+                verificationCode = String.format("%06d", secureRandom.nextInt(1_000_000));
+                appendMessage(isEnglish
+                        ? "SMS service is not connected yet. For demo purposes, your phone verification code is: " + verificationCode
+                        : "שירות ה-SMS עדיין לא מחובר. לצורך הדגמה, קוד האימות לטלפון שלך הוא: " + verificationCode);
+                appendMessage(isEnglish ? "Enter the verification code:" : "נא להזין את קוד האימות:");
+                chatState = 5;
+            } else {
+                appendMessage(isEnglish
+                        ? "Please enter 1 for Email or 2 for Phone:"
+                        : "נא להזין 1 לאימייל או 2 לטלפון:");
+            }
+        } else if (chatState == 4) {
             if (!input.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
                 appendMessage(isEnglish ? "Please enter a valid email address:" : "נא להזין כתובת אימייל תקינה:");
             } else {
@@ -322,27 +340,20 @@ public class GoldenBurgerBot extends Application {
                 try {
                     emailService.sendVerificationCode(customerEmail, verificationCode);
                     appendMessage(isEnglish ? "A verification code has been sent to your email. Enter it here:" : "קוד אימות נשלח לאימייל שלך. נא להזין אותו כאן:");
-                    chatState = 4;
+                    chatState = 5;
                 } catch (MessagingException | IllegalStateException e) {
                     verificationCode = "";
                     appendMessage(isEnglish ? "The verification email could not be sent. Check the mail configuration and enter your email again:" : "לא ניתן היה לשלוח את קוד האימות. יש לבדוק את הגדרות המייל ולהזין שוב את כתובת האימייל:");
                 }
             }
-        } else if (chatState == 4) {
+        } else if (chatState == 5) {
             if (input.equals(verificationCode)) {
                 verificationCode = "";
-                if(orderType.equals("משלוח") || orderType.equals("Delivery")) {
-                    appendMessage(isEnglish ? "Delivery address?" : "כתובת למשלוח?");
-                    chatState = 5;
-                } else {
-                    showCouponAnnouncement();
-                    showMenuCategories();
-                    chatState = 6;
-                }
+                continueAfterVerification();
             } else {
                 appendMessage(isEnglish ? "Invalid verification code. Please try again:" : "קוד אימות שגוי. נא לנסות שוב:");
             }
-        } else if (chatState == 5) {
+        } else if (chatState == 6) {
             boolean isJerusalem = false;
             try (BufferedReader br = new BufferedReader(new FileReader("streets.txt"))) {
                 String line;
@@ -353,11 +364,22 @@ public class GoldenBurgerBot extends Application {
                 customerAddress = input;
                 showCouponAnnouncement();
                 showMenuCategories();
-                chatState = 6;
+                chatState = 7;
             } else appendMessage(isEnglish ? "Not in our delivery area!" : "לא באזור שלנו!");
         }
 
         inputField.requestFocus();
+    }
+
+    private void continueAfterVerification() {
+        if (orderType.equals("משלוח") || orderType.equals("Delivery")) {
+            appendMessage(isEnglish ? "Delivery address?" : "כתובת למשלוח?");
+            chatState = 6;
+        } else {
+            showCouponAnnouncement();
+            showMenuCategories();
+            chatState = 7;
+        }
     }
 
     private void openAdminDashboard() {
