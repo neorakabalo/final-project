@@ -22,6 +22,7 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.io.IOException;
 import java.io.File;
+import java.time.YearMonth;
 import java.util.Random;
 import jakarta.mail.MessagingException;
 
@@ -370,13 +371,13 @@ public class GoldenBurgerBot extends Application {
                         : "מספר הכרטיס חייב להכיל 12-19 ספרות בלבד. נא לנסות שוב:");
             }
         } else if (chatState == 9) {
-            if (input.matches("(0[1-9]|1[0-2])/\\d{2}")) {
+            if (isValidExpirationDate(input)) {
                 appendMessage(isEnglish ? "Enter CVV (3 or 4 digits):" : "נא להזין CVV (3 או 4 ספרות):");
                 chatState = 10;
             } else {
                 appendMessage(isEnglish
-                        ? "Expiration date must use MM/YY format. Try again:"
-                        : "תוקף הכרטיס חייב להיות בפורמט MM/YY. נא לנסות שוב:");
+                        ? "Invalid or expired date. Please enter expiration date as MM/YY:"
+                        : "תוקף לא תקין או שפג תוקף. נא להזין תוקף בפורמט MM/YY:");
             }
         } else if (chatState == 10) {
             if (input.matches("\\d{3,4}")) {
@@ -389,6 +390,16 @@ public class GoldenBurgerBot extends Application {
         }
 
         inputField.requestFocus();
+    }
+
+    // בודקת פורמט MM/YY ומוודאת שהכרטיס תקף בחודש הנוכחי או בחודש עתידי.
+    private boolean isValidExpirationDate(String input) {
+        if (!input.matches("(0[1-9]|1[0-2])/\\d{2}")) return false;
+
+        int month = Integer.parseInt(input.substring(0, 2));
+        int year = 2000 + Integer.parseInt(input.substring(3, 5));
+        YearMonth expiration = YearMonth.of(year, month);
+        return !expiration.isBefore(YearMonth.now());
     }
 
     // נקראת אחרי אימות מוצלח: משלוח עובר לכתובת, ואיסוף עובר ישירות לתפריט.
