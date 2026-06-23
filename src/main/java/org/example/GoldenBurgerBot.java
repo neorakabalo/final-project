@@ -137,7 +137,7 @@ public class GoldenBurgerBot extends Application {
                 if (!logoImage.isError()) {
                     watermark.setImage(logoImage);
                     watermark.setOpacity(0.15);
-                    watermark.setFitWidth(400);
+                    watermark.setFitWidth(320);
                     watermark.setPreserveRatio(true);
                 }
             }
@@ -150,6 +150,9 @@ public class GoldenBurgerBot extends Application {
 
         chatScroll = new ScrollPane(chatBox);
         chatScroll.setFitToWidth(true);
+        chatScroll.setPannable(true);
+        chatScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        chatScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         chatScroll.setNodeOrientation(NodeOrientation.RIGHT_TO_LEFT);
         chatScroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
         chatBox.heightProperty().addListener((obs, oldVal, newVal) -> chatScroll.setVvalue(1.0));
@@ -186,9 +189,17 @@ public class GoldenBurgerBot extends Application {
         HBox topBar = new HBox(langButton);
         topBar.setAlignment(Pos.TOP_LEFT);
 
-        VBox topContainer = new VBox(10, topBar, topPane);
+        ScrollPane menuScroll = new ScrollPane(topPane);
+        menuScroll.setFitToWidth(true);
+        menuScroll.setPannable(true);
+        menuScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        menuScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        menuScroll.setMaxHeight(330);
+        menuScroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+
+        VBox topContainer = new VBox(10, topBar, menuScroll);
         topContainer.setAlignment(Pos.CENTER);
-        topContainer.setPadding(new Insets(10, 20, 25, 20));
+        topContainer.setPadding(new Insets(10, 20, 15, 20));
         topContainer.setStyle("-fx-background-color: rgba(26, 26, 26, 0.85); -fx-border-color: " + GOLD + "; -fx-border-width: 0 0 2 0;");
 
         BorderPane mainContent = new BorderPane();
@@ -202,9 +213,11 @@ public class GoldenBurgerBot extends Application {
 
         showTypeSelection();
 
-        Scene scene = new Scene(root, 750, 850);
+        Scene scene = new Scene(root, 950, 700);
         scene.getStylesheets().add("file:style.css");
         primaryStage.setScene(scene);
+        primaryStage.setMinWidth(720);
+        primaryStage.setMinHeight(560);
         primaryStage.show();
     }
 
@@ -456,10 +469,13 @@ public class GoldenBurgerBot extends Application {
         stats.setStyle("-fx-text-fill: #4CAF50; -fx-font-size: 20px; -fx-font-weight: bold;");
 
         root.getChildren().addAll(title, stats, ordersListView);
+        VBox.setVgrow(ordersListView, Priority.ALWAYS);
 
         Scene scene = new Scene(root, 600, 500);
         scene.getStylesheets().add("file:style.css");
         adminStage.setScene(scene);
+        adminStage.setMinWidth(500);
+        adminStage.setMinHeight(400);
         adminStage.show();
     }
 
@@ -501,7 +517,8 @@ public class GoldenBurgerBot extends Application {
         for (MenuItem item : menu) {
             if (item.category.equals(cat)) {
                 Button btn = new Button(item.name + "\n\n" + item.description + "\n\n₪" + String.format("%.2f", item.price));
-                btn.setPrefSize(250, 240);
+                btn.setPrefSize(220, 210);
+                btn.setMaxSize(240, 220);
                 btn.setWrapText(true);
 
                 try {
@@ -511,7 +528,8 @@ public class GoldenBurgerBot extends Application {
                             Image img = new Image(imgFile.toURI().toString());
                             if (!img.isError()) {
                                 ImageView icon = new ImageView(img);
-                                icon.setFitHeight(90);
+                                icon.setFitWidth(100);
+                                icon.setFitHeight(80);
                                 icon.setPreserveRatio(true);
                                 btn.setGraphic(icon);
                                 btn.setContentDisplay(ContentDisplay.TOP);
@@ -575,7 +593,8 @@ public class GoldenBurgerBot extends Application {
         popupStage.setTitle(isEnglish ? "Product View" : "הצגת מנה מוגדלת");
 
         ImageView largeView = new ImageView(new Image(imgFile.toURI().toString()));
-        largeView.setFitWidth(400); // רוחב התמונה המוגדלת
+        largeView.setFitWidth(340);
+        largeView.setFitHeight(300);
         largeView.setPreserveRatio(true);
 
         Label titleLabel = new Label(item.name);
@@ -598,8 +617,10 @@ public class GoldenBurgerBot extends Application {
         FadeTransition fadeIn = new FadeTransition(Duration.millis(400), layout);
         fadeIn.setFromValue(0.0); fadeIn.setToValue(1.0); fadeIn.play();
 
-        Scene scene = new Scene(layout);
+        Scene scene = new Scene(layout, 420, 520);
         popupStage.setScene(scene);
+        popupStage.setMinWidth(360);
+        popupStage.setMinHeight(420);
         popupStage.show();
     }
 
@@ -726,6 +747,9 @@ public class GoldenBurgerBot extends Application {
                 itemRow.setAlignment(Pos.CENTER);
                 Label itemLabel = new Label("• " + item);
                 itemLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
+                itemLabel.setWrapText(true);
+                itemLabel.setMaxWidth(330);
+                HBox.setHgrow(itemLabel, Priority.ALWAYS);
 
                 Button removeBtn = new Button("❌");
                 removeBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #FF5555; -fx-cursor: hand; -fx-font-size: 12px;");
@@ -746,6 +770,7 @@ public class GoldenBurgerBot extends Application {
         TextField couponInput = new TextField();
         couponInput.setPromptText(isEnglish ? "Coupon code..." : "קוד קופון...");
         couponInput.setStyle("-fx-background-color: #333; -fx-text-fill: white; -fx-border-color: " + GOLD + "; -fx-border-radius: 5;");
+        HBox.setHgrow(couponInput, Priority.ALWAYS);
 
         Button applyBtn = new Button(isEnglish ? "Apply" : "הפעל");
         applyBtn.setStyle("-fx-background-color: " + GOLD + "; -fx-text-fill: black; -fx-font-weight: bold; -fx-cursor: hand;");
@@ -820,7 +845,17 @@ public class GoldenBurgerBot extends Application {
         });
 
         root.getChildren().add(actionButtonsBox);
-        cartStage.setScene(new Scene(root, 450, 600));
+
+        ScrollPane cartScroll = new ScrollPane(root);
+        cartScroll.setFitToWidth(true);
+        cartScroll.setPannable(true);
+        cartScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        cartScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        cartScroll.setStyle("-fx-background-color: " + DARK_BG + "; -fx-background: " + DARK_BG + ";");
+
+        cartStage.setScene(new Scene(cartScroll, 460, 560));
+        cartStage.setMinWidth(380);
+        cartStage.setMinHeight(420);
         cartStage.show();
     }
 
@@ -953,6 +988,8 @@ public class GoldenBurgerBot extends Application {
         fadeIn.setFromValue(0.0); fadeIn.setToValue(1.0); fadeIn.play();
 
         receiptStage.setScene(new Scene(root, 380, 500));
+        receiptStage.setMinWidth(330);
+        receiptStage.setMinHeight(400);
         receiptStage.show();
     }
 
