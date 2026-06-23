@@ -47,7 +47,8 @@ public class GoldenBurgerBot extends Application {
     /*
      * מצב השיחה קובע כיצד לפרש את הקלט הבא:
      * 0 - בחירת משלוח/איסוף, 1 - שם, 2 - טלפון, 3 - בחירת דרך אימות,
-     * 4 - כתובת מייל, 5 - קוד אימות, 6 - כתובת משלוח, 7 - צפייה בתפריט.
+     * 4 - כתובת מייל, 5 - קוד אימות, 6 - כתובת משלוח, 7 - צפייה בתפריט,
+     * 8 - מספר כרטיס, 9 - תוקף כרטיס, 10 - CVV.
      * כל שלב תקין מעדכן את הערך ומעביר את המשתמש לשלב הבא.
      */
     private int chatState = 0;
@@ -57,6 +58,9 @@ public class GoldenBurgerBot extends Application {
     private String customerPhone = "";
     private String customerEmail = "";
     private String customerAddress = "";
+    private String paymentMethod = "";
+    private String cardLastFour = "";
+    private int pendingOrderId;
 
     // השירותים מפרידים בין ממשק הצ'אט לבין מייל, תפריט וקוד האימות הנוכחי.
     private final EmailService emailService = new EmailService();
@@ -106,6 +110,9 @@ public class GoldenBurgerBot extends Application {
         verificationService.clear();
         orderList.clear();
         orderList.setDiscount(0.0);
+        paymentMethod = "";
+        cardLastFour = "";
+        pendingOrderId = 0;
 
         chatBox.setNodeOrientation(isEnglish ? NodeOrientation.LEFT_TO_RIGHT : NodeOrientation.RIGHT_TO_LEFT);
         chatScroll.setNodeOrientation(isEnglish ? NodeOrientation.LEFT_TO_RIGHT : NodeOrientation.RIGHT_TO_LEFT);
@@ -268,7 +275,17 @@ public class GoldenBurgerBot extends Application {
             return;
         }
 
-        appendMessage(input, false);
+        if (chatState == 8) {
+            String digits = input.replaceAll("\\D", "");
+            String maskedCard = digits.length() >= 4
+                    ? "•••• " + digits.substring(digits.length() - 4)
+                    : "••••";
+            appendMessage(maskedCard, false);
+        } else if (chatState == 10) {
+            appendMessage("•••", false);
+        } else {
+            appendMessage(input, false);
+        }
         inputField.clear();
 
         // מצבים 1–2 אוספים שם וטלפון; רק טלפון תקין מאפשר לעבור לבחירת אימות.
@@ -342,6 +359,33 @@ public class GoldenBurgerBot extends Application {
                 showMenuCategories();
                 chatState = 7;
             } else appendMessage(isEnglish ? "Not in our delivery area!" : "לא באזור שלנו!");
+        } else if (chatState == 8) {
+            if (input.matches("\\d{12,19}")) {
+                cardLastFour = input.substring(input.length() - 4);
+                appendMessage(isEnglish ? "Enter expiration date (MM/YY):" : "נא להזין תוקף כרטיס (MM/YY):");
+                chatState = 9;
+            } else {
+                appendMessage(isEnglish
+                        ? "Card number must contain 12-19 digits only. Try again:"
+                        : "מספר הכרטיס חייב להכיל 12-19 ספרות בלבד. נא לנסות שוב:");
+            }
+        } else if (chatState == 9) {
+            if (input.matches("(0[1-9]|1[0-2])/\\d{2}")) {
+                appendMessage(isEnglish ? "Enter CVV (3 or 4 digits):" : "נא להזין CVV (3 או 4 ספרות):");
+                chatState = 10;
+            } else {
+                appendMessage(isEnglish
+                        ? "Expiration date must use MM/YY format. Try again:"
+                        : "תוקף הכרטיס חייב להיות בפורמט MM/YY. נא לנסות שוב:");
+            }
+        } else if (chatState == 10) {
+            if (input.matches("\\d{3,4}")) {
+                finishOrder(pendingOrderId);
+            } else {
+                appendMessage(isEnglish
+                        ? "CVV must contain 3 or 4 digits. Try again:"
+                        : "CVV חייב להכיל 3 או 4 ספרות. נא לנסות שוב:");
+            }
         }
 
         inputField.requestFocus();
@@ -757,16 +801,57 @@ public class GoldenBurgerBot extends Application {
             actionButtonsBox.getChildren().addAll(clearBtn, finishBtn);
         }
 
-        // בסיום נוצר מספר הזמנה אקראי והנתונים עוברים לשמירה ולהפקת קבלה.
+        // בקופה נוצר מספר הזמנה, אך ההזמנה מסתיימת רק לאחר בחירת אמצעי תשלום.
         finishBtn.setOnAction(e -> {
-            int orderId = 1000 + new Random().nextInt(9000);
-            finishOrder(orderId);
+            pendingOrderId = 1000 + new Random().nextInt(9000);
             cartStage.close();
+            showPaymentSelection();
         });
 
         root.getChildren().add(actionButtonsBox);
         cartStage.setScene(new Scene(root, 450, 600));
         cartStage.show();
+    }
+
+    // מציגה בחירה קצרה וברורה בין מזומן לבין תשלום אשראי מדומה.
+    private void showPaymentSelection() {
+        topPane.getChildren().clear();
+        inputField.setDisable(true);
+        sendButton.setDisable(true);
+
+        appendMessage(isEnglish ? "Choose a payment method:" : "נא לבחור אמצעי תשלום:");
+
+        Button cashButton = new Button(isEnglish ? "Cash" : "מזומן");
+        Button cardButton = new Button(isEnglish ? "Credit card" : "כרטיס אשראי");
+        String paymentButtonStyle = "-fx-background-color: transparent; -fx-text-fill: " + GOLD
+                + "; -fx-border-color: " + GOLD + "; -fx-border-width: 2; -fx-border-radius: 25;"
+                + " -fx-font-weight: bold; -fx-font-size: 16px; -fx-cursor: hand;";
+        cashButton.setPrefSize(180, 50);
+        cardButton.setPrefSize(180, 50);
+        cashButton.setStyle(paymentButtonStyle);
+        cardButton.setStyle(paymentButtonStyle);
+
+        cashButton.setOnAction(e -> {
+            paymentMethod = "Cash";
+            topPane.getChildren().clear();
+            appendMessage(isEnglish ? "Payment method: Cash" : "אמצעי תשלום: מזומן");
+            finishOrder(pendingOrderId);
+        });
+
+        cardButton.setOnAction(e -> {
+            paymentMethod = "Credit card";
+            topPane.getChildren().clear();
+            appendMessage(isEnglish
+                    ? "Demo payment only - no real charge will be made."
+                    : "תשלום דמו בלבד - לא מתבצע חיוב אמיתי.");
+            appendMessage(isEnglish ? "Enter card number:" : "נא להזין מספר כרטיס:");
+            inputField.setDisable(false);
+            sendButton.setDisable(false);
+            chatState = 8;
+            inputField.requestFocus();
+        });
+
+        topPane.getChildren().addAll(cashButton, cardButton);
     }
 
     // מסיימת הזמנה: שומרת CSV וקבלה, מציגה אישור ונועלת את המשך הקלט.
@@ -780,6 +865,12 @@ public class GoldenBurgerBot extends Application {
         appendMessage("--------------------------------");
         appendMessage(isEnglish ? "Order received! Order ID: #" + orderId : "ההזמנה התקבלה בהצלחה! מספר הזמנה: #" + orderId);
         appendMessage((isEnglish ? "Total paid: ₪" : "סה\"כ לתשלום: ") + String.format("%.2f", finalPrice) + (isEnglish ? "" : " ש\"ח."));
+        appendMessage(isEnglish
+                ? "Payment method: " + paymentMethod
+                : "אמצעי תשלום: " + (paymentMethod.equals("Cash") ? "מזומן" : "אשראי"));
+        if (paymentMethod.equals("Credit card")) {
+            appendMessage(isEnglish ? "Card ending with: " + cardLastFour : "כרטיס שמסתיים ב: " + cardLastFour);
+        }
 
         if (orderType.equals("משלוח") || orderType.equals("Delivery")) {
             appendMessage(isEnglish ? "Prep time: ~15 mins.\nEstimated delivery: up to 60 mins.\nCourier will call: " + customerPhone : "זמן הכנה: כ-15 דקות.\nזמן הגעה משוער למשלוח: עד 60 דקות.\nהשליח ייצור איתך קשר בטלפון: " + customerPhone);
@@ -805,7 +896,13 @@ public class GoldenBurgerBot extends Application {
         content += (isEnglish ? "Order ID: #" : "מספר הזמנה: #") + orderId + "\n" +
                 (isEnglish ? "Customer Name: " : "שם הלקוח: ") + customerName + "\n" +
                 (isEnglish ? "Phone: " : "טלפון: ") + customerPhone + "\n" +
-                (isEnglish ? "Order Type: " : "סוג ההזמנה: ") + orderType + "\n";
+                (isEnglish ? "Order Type: " : "סוג ההזמנה: ") + orderType + "\n" +
+                (isEnglish ? "Payment method: " : "אמצעי תשלום: ")
+                        + (isEnglish ? paymentMethod : (paymentMethod.equals("Cash") ? "מזומן" : "אשראי")) + "\n";
+
+        if (paymentMethod.equals("Credit card")) {
+            content += (isEnglish ? "Card ending with: " : "כרטיס שמסתיים ב: ") + cardLastFour + "\n";
+        }
 
         if (orderType.equals("משלוח") || orderType.equals("Delivery")) {
             content += (isEnglish ? "Address: " : "כתובת למשלוח: ") + customerAddress + "\n";

@@ -18,7 +18,10 @@ The interface supports both Hebrew and English and keeps the customer focused on
 - Live cart count, order summary, and total-price calculation
 - Coupon discounts: `GOLDEN10` for 10% and `VIP` for 20%
 - Delivery-address validation against the configured street list
+- Cash and demo credit card payment options
+- Basic demo card-field validation with no real payment provider or charge
 - Order confirmation, digital receipt display, and local receipt/order-file output
+- Receipt display of the selected payment method (and only the card's last four digits for demo card payments)
 
 ## User Flow
 
@@ -31,7 +34,9 @@ The interface supports both Hebrew and English and keeps the customer focused on
 7. The customer enters the verification code and the application checks it.
 8. A delivery customer enters an address, which is checked against the supported street list. A pickup customer continues directly to the menu.
 9. The customer browses menu categories, customizes applicable items, adds products to the cart, and may apply a coupon.
-10. The cart displays the selected items and final total. The customer completes the order and receives an order number and receipt.
+10. The cart displays the selected items and final total. The customer chooses cash or demo credit card payment before completing the order.
+11. Demo credit card payment collects basic card fields in the chat for presentation only; no real payment provider is connected and no real charge is made.
+12. The customer receives an order number and receipt showing the selected payment method. Credit card receipts show only the last four digits.
 
 ## Project Structure
 
