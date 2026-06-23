@@ -22,13 +22,15 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.io.IOException;
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Random;
+import jakarta.mail.MessagingException;
 
 public class GoldenBurgerBot extends Application {
 
+    // תיקיית התמונות של הלוגו ושל פריטי התפריט.
     private static final String IMAGE_DIR = "src/assets/images/";
 
+    // רכיבי הצ'אט: אזור ההודעות, הגלילה ושורת הקלט של המשתמש.
     private VBox chatBox;
     private ScrollPane chatScroll;
 
@@ -38,24 +40,40 @@ public class GoldenBurgerBot extends Application {
     private HBox bottomBox;
     private Button langButton;
 
+    // התפריט בשפה הפעילה וההזמנה שנבנית לאורך השיחה.
     private MenuItem[] menu;
-    private double discount = 0.0;
-    private OrderLinkedList orderList = new OrderLinkedList();
+    private final OrderService orderList = new OrderService();
 
+    /*
+     * מצב השיחה קובע כיצד לפרש את הקלט הבא:
+     * 0 - בחירת משלוח/איסוף, 1 - שם, 2 - טלפון, 3 - בחירת דרך אימות,
+     * 4 - כתובת מייל, 5 - קוד אימות, 6 - כתובת משלוח, 7 - צפייה בתפריט.
+     * כל שלב תקין מעדכן את הערך ומעביר את המשתמש לשלב הבא.
+     */
     private int chatState = 0;
+    // פרטי הלקוח נשמרים בהדרגה ומשמשים בסיום ההזמנה ובקבלה.
     private String orderType = "";
     private String customerName = "";
     private String customerPhone = "";
+    private String customerEmail = "";
     private String customerAddress = "";
 
+    // השירותים מפרידים בין ממשק הצ'אט לבין מייל, תפריט וקוד האימות הנוכחי.
+    private final EmailService emailService = new EmailService();
+    private final MenuService menuService = new MenuService();
+    private final VerificationService verificationService = new VerificationService();
+
+    // קובע באיזו שפה יוצגו התפריט, הכפתורים והודעות הבוט.
     private boolean isEnglish = false;
 
     private final String GOLD = "#FFD700";
     private final String DARK_BG = "#1A1A1A";
     private final String CARD_BG = "#2B2B2B";
 
+    // נקודת הכניסה שמפעילה את מחזור החיים של JavaFX.
     public static void main(String[] args) { launch(args); }
 
+    // יוצרת בעת האתחול את קובץ העיצוב שבו משתמשים חלונות האפליקציה.
     private void createCustomCss() {
         try (PrintWriter writer = new PrintWriter(new FileWriter("style.css", false))) {
             writer.println(".scroll-pane { -fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 0; }");
@@ -69,55 +87,12 @@ public class GoldenBurgerBot extends Application {
         } catch (IOException e) {}
     }
 
+    // נטענת בתחילת האפליקציה ובהחלפת שפה, ומחליפה את מערך התפריט המוצג.
     private void loadMenu() {
-        menu = new MenuItem[21];
-        if (isEnglish) {
-            menu[0] = new MenuItem("Golden Burger Meal", 85.0, "Meals", "200g 100% Entrecote patty in our secret Golden Aioli.", "golden_meal.png");
-            menu[1] = new MenuItem("Classic Meal", 85.0, "Meals", "200g 100% Entrecote patty with toppings of your choice.", "classic_meal.png");
-            menu[2] = new MenuItem("Crispy Chicken Meal", 85.0, "Meals", "Crunchy chicken fillet coated in rice crispies.", "crispy_meal.png");
-            menu[3] = new MenuItem("Burger & Beer Meal", 95.0, "Meals", "200g Entrecote patty with fries and cold Carlsberg.", "burger_beer.png");
-            menu[4] = new MenuItem("Golden Burger", 62.0, "Burgers", "200g Entrecote patty in our secret Golden Aioli.", "golden.png");
-            menu[5] = new MenuItem("Classic Burger", 62.0, "Burgers", "200g Entrecote patty with toppings of your choice.", "classic.png");
-            menu[6] = new MenuItem("Crispy Chicken", 58.0, "Burgers", "Crunchy chicken fillet coated in rice crispies.", "crispy.png");
-            menu[7] = new MenuItem("Fries", 22.0, "Sides", "Crispy potato fries.", "fries.png");
-            menu[8] = new MenuItem("Onion Rings", 24.0, "Sides", "10 pieces of onion rings.", "onion_rings.png");
-            menu[9] = new MenuItem("Mashed Potato Balls", 24.0, "Sides", "10 pieces of potato balls.", "mash_balls.png");
-            menu[10] = new MenuItem("Corn Chicken", 48.0, "Sides", "8 pcs chicken fillet in cornflakes coating.", "corn_chicken.png");
-            menu[11] = new MenuItem("Wings", 34.0, "Sides", "6 pcs chicken wings in house sauce.", "wings.png");
-            menu[12] = new MenuItem("Coca Cola", 12.0, "Drinks", "330ml Can.", "cola.png");
-            menu[13] = new MenuItem("Cola Zero", 12.0, "Drinks", "330ml Can.", "cola_zero.png");
-            menu[14] = new MenuItem("Sprite", 12.0, "Drinks", "330ml Can.", "sprite.png");
-            menu[15] = new MenuItem("Sprite Zero", 12.0, "Drinks", "330ml Can.", "sprite_zero.png");
-            menu[16] = new MenuItem("Fanta Orange", 12.0, "Drinks", "330ml Can.", "fanta.png");
-            menu[17] = new MenuItem("Peach Fuze Tea", 12.0, "Drinks", "330ml Can.", "fuze_tea.png");
-            menu[18] = new MenuItem("Mineral Water", 10.0, "Drinks", "500ml Bottle.", "water.png");
-            menu[19] = new MenuItem("Soda", 10.0, "Drinks", "330ml Can.", "soda.png");
-            menu[20] = new MenuItem("Carlsberg Beer", 18.0, "Drinks", "330ml Bottle.", "beer.png");
-        } else {
-            menu[0] = new MenuItem("ארוחת גולדן בורגר", 85.0, "ארוחות", "כ-200 גר׳ של 100% קציצת אנטריקוט שמתבשלת ברוטב איולי גולדן.", "golden_meal.png");
-            menu[1] = new MenuItem("ארוחה קלאסית", 85.0, "ארוחות", "כ-200 גר׳ של 100% קציצת אנטריקוט עם מרכיבים לבחירה.", "classic_meal.png");
-            menu[2] = new MenuItem("ארוחת קריספי צ'יקן", 85.0, "ארוחות", "פילה עוף קראנצ׳י בציפוי פצפוצי אורז.", "crispy_meal.png");
-            menu[3] = new MenuItem("ארוחת המבורגר עם בירה", 95.0, "ארוחות", "כ-200 גר׳ של 100% קציצת אנטריקוט עם צ'יפס ובירה קרה.", "burger_beer.png");
-            menu[4] = new MenuItem("גולדן בורגר", 62.0, "המבורגרים", "כ-200 גר׳ קציצת אנטריקוט שמתבשלת ברוטב איולי גולדן.", "golden.png");
-            menu[5] = new MenuItem("המבורגר קלאסי", 62.0, "המבורגרים", "כ-200 גר׳ קציצת אנטריקוט עם מרכיבים לבחירה.", "classic.png");
-            menu[6] = new MenuItem("קריספי צ'יקן", 58.0, "המבורגרים", "פילה עוף קראנצ׳י בציפוי פצפוצי אורז.", "crispy.png");
-            menu[7] = new MenuItem("צ'יפס", 22.0, "תוספות", "צ'יפס תפוחי אדמה פריך.", "fries.png");
-            menu[8] = new MenuItem("טבעות בצל", 24.0, "תוספות", "10 יחידות טבעות בצל.", "onion_rings.png");
-            menu[9] = new MenuItem("כדורי פירה", 24.0, "תוספות", "10 יחידות כדורי פירה.", "mash_balls.png");
-            menu[10] = new MenuItem("קורנצ'יקן", 48.0, "תוספות", "8 יח׳ פילה עוף בציפוי קורנפלקס.", "corn_chicken.png");
-            menu[11] = new MenuItem("כנפיים", 34.0, "תוספות", "6 יח׳ כנפיים ברוטב הבית.", "wings.png");
-            menu[12] = new MenuItem("קוקה קולה", 12.0, "שתייה", "פחית 330 מ\"ל.", "cola.png");
-            menu[13] = new MenuItem("קולה זירו", 12.0, "שתייה", "פחית 330 מ\"ל.", "cola_zero.png");
-            menu[14] = new MenuItem("ספרייט", 12.0, "שתייה", "פחית 330 מ\"ל.", "sprite.png");
-            menu[15] = new MenuItem("ספרייט זירו", 12.0, "שתייה", "פחית 330 מ\"ל.", "sprite_zero.png");
-            menu[16] = new MenuItem("פאנטה אורנג'", 12.0, "שתייה", "פחית 330 מ\"ל.", "fanta.png");
-            menu[17] = new MenuItem("פיוז טי אפרסק", 12.0, "שתייה", "פחית 330 מ\"ל.", "fuze_tea.png");
-            menu[18] = new MenuItem("מים נביעות", 10.0, "שתייה", "בקבוק חצי ליטר.", "water.png");
-            menu[19] = new MenuItem("סודה", 10.0, "שתייה", "פחית 330 מ\"ל.", "soda.png");
-            menu[20] = new MenuItem("בירה קרלסברג", 18.0, "שתייה", "בקבוק 330 מ\"ל.", "beer.png");
-        }
+        menu = menuService.getMenu(isEnglish);
     }
 
+    // נקראת מלחצן השפה; מאפסת את השיחה והסל ומתחילה שוב מבחירת סוג הזמנה.
     private void toggleLanguage() {
         isEnglish = !isEnglish;
         loadMenu();
@@ -128,8 +103,9 @@ public class GoldenBurgerBot extends Application {
 
         chatBox.getChildren().clear();
         chatState = 0;
+        verificationService.clear();
         orderList.clear();
-        discount = 0.0;
+        orderList.setDiscount(0.0);
 
         chatBox.setNodeOrientation(isEnglish ? NodeOrientation.LEFT_TO_RIGHT : NodeOrientation.RIGHT_TO_LEFT);
         chatScroll.setNodeOrientation(isEnglish ? NodeOrientation.LEFT_TO_RIGHT : NodeOrientation.RIGHT_TO_LEFT);
@@ -138,6 +114,7 @@ public class GoldenBurgerBot extends Application {
     }
 
     @Override
+    // JavaFX קוראת למתודה פעם אחת כדי לבנות ולהציג את הממשק הראשי.
     public void start(Stage primaryStage) {
         createCustomCss();
         loadMenu();
@@ -223,6 +200,7 @@ public class GoldenBurgerBot extends Application {
         primaryStage.show();
     }
 
+    // מוסיפה בועת הודעה לצ'אט וממקמת אותה לפי השולח והשפה הפעילה.
     private void appendMessage(String msg, boolean isBot) {
         Label bubble = new Label(msg);
         bubble.setWrapText(true);
@@ -243,10 +221,12 @@ public class GoldenBurgerBot extends Application {
         chatBox.getChildren().add(row);
     }
 
+    // קיצור להוספת הודעה של הבוט; אינו מחזיר ערך אלא מעדכן את אזור הצ'אט.
     private void appendMessage(String msg) {
         appendMessage(msg, true);
     }
 
+    // מציגה בתחילת הזרימה את הבחירה בין משלוח לאיסוף עצמי.
     private void showTypeSelection() {
         topPane.getChildren().clear();
         Button del = new Button(isEnglish ? "Delivery" : "משלוח");
@@ -266,6 +246,7 @@ public class GoldenBurgerBot extends Application {
         }
     }
 
+    // נקראת לאחר לחיצה על סוג הזמנה, שומרת אותו ומעבירה למצב 1: קליטת שם.
     private void handleOrderTypeSelection(String type) {
         orderType = type;
         topPane.getChildren().clear();
@@ -276,6 +257,7 @@ public class GoldenBurgerBot extends Application {
         inputField.requestFocus();
     }
 
+    // נקראת בלחיצה על שליחה או Enter ומטפלת בקלט לפי מצב הצ'אט הנוכחי.
     private void processUserInput() {
         String input = inputField.getText().trim();
         if (input.isEmpty()) return;
@@ -289,36 +271,65 @@ public class GoldenBurgerBot extends Application {
         appendMessage(input, false);
         inputField.clear();
 
+        // מצבים 1–2 אוספים שם וטלפון; רק טלפון תקין מאפשר לעבור לבחירת אימות.
         if (chatState == 1) {
             customerName = input;
             appendMessage(isEnglish ? "Nice to meet you, " + customerName + "! What is your phone number?" : "נעים מאוד " + customerName + "! מה הטלפון?");
             chatState = 2;
         } else if (chatState == 2) {
-            boolean isAllDigits = true;
-            for (int i = 0; i < input.length(); i++) {
-                if (!Character.isDigit(input.charAt(i))) { isAllDigits = false; break; }
-            }
-            if (input.length() == 10 && isAllDigits) {
+            if (ValidationUtils.isValidPhone(input)) {
                 customerPhone = input;
-                appendMessage(isEnglish ? "A code has been sent to your phone. Enter it here.\nYour code is: 1234" : "נשלח לך קוד לנייד, הזיני אותו.\nהקוד שלך הוא: 1234");
+                appendMessage(isEnglish
+                        ? "How would you like to receive the verification code? Enter 1 for Email or 2 for Phone:"
+                        : "איך תרצה לקבל את קוד האימות? יש להזין 1 לאימייל או 2 לטלפון:");
                 chatState = 3;
             } else {
                 appendMessage(isEnglish ? "Phone number must be exactly 10 digits. Try again:" : "מספר הטלפון חייב להכיל בדיוק 10 ספרות (ללא אותיות או רווחים). אנא נסי שוב:");
             }
         } else if (chatState == 3) {
-            if (input.equals("1234")) {
-                if(orderType.equals("משלוח") || orderType.equals("Delivery")) {
-                    appendMessage(isEnglish ? "Delivery address?" : "כתובת למשלוח?");
-                    chatState = 4;
-                } else {
-                    showCouponAnnouncement();
-                    showMenuCategories();
-                    chatState = 5;
-                }
+            // המשתמש בוחר אם לקבל קוד במייל או לראות אותו בטלפון במצב הדגמה.
+            if (input.equals("1") || input.equalsIgnoreCase("email") || input.equals("אימייל")) {
+                appendMessage(isEnglish ? "What is your email address?" : "מה כתובת האימייל שלך?");
+                chatState = 4;
+            } else if (input.equals("2") || input.equalsIgnoreCase("phone") || input.equals("טלפון")) {
+                // אין חיבור SMS: נוצר קוד בן 6 ספרות והוא מוצג בצ'אט לצורכי הדגמה.
+                String verificationCode = verificationService.generateCode();
+                appendMessage(isEnglish
+                        ? "SMS service is not connected yet. For demo purposes, your phone verification code is: " + verificationCode
+                        : "שירות ה-SMS עדיין לא מחובר. לצורך הדגמה, קוד האימות לטלפון שלך הוא: " + verificationCode);
+                appendMessage(isEnglish ? "Enter the verification code:" : "נא להזין את קוד האימות:");
+                chatState = 5;
             } else {
-                appendMessage(isEnglish ? "Invalid code. Please enter 1234:" : "קוד אימות שגוי. אנא הקישי 1234:");
+                appendMessage(isEnglish
+                        ? "Please enter 1 for Email or 2 for Phone:"
+                        : "נא להזין 1 לאימייל או 2 לטלפון:");
             }
         } else if (chatState == 4) {
+            // במסלול המייל נבדקת הכתובת, נוצר קוד ונשלח באמצעות שירות המייל.
+            if (!ValidationUtils.isValidEmail(input)) {
+                appendMessage(isEnglish ? "Please enter a valid email address:" : "נא להזין כתובת אימייל תקינה:");
+            } else {
+                customerEmail = input;
+                String verificationCode = verificationService.generateCode();
+                try {
+                    emailService.sendVerificationCode(customerEmail, verificationCode);
+                    appendMessage(isEnglish ? "A verification code has been sent to your email. Enter it here:" : "קוד אימות נשלח לאימייל שלך. נא להזין אותו כאן:");
+                    chatState = 5;
+                } catch (MessagingException | IllegalStateException e) {
+                    verificationService.clear();
+                    appendMessage(isEnglish ? "The verification email could not be sent. Check the mail configuration and enter your email again:" : "לא ניתן היה לשלוח את קוד האימות. יש לבדוק את הגדרות המייל ולהזין שוב את כתובת האימייל:");
+                }
+            }
+        } else if (chatState == 5) {
+            // הקלט מושווה לקוד שנשמר; הצלחה מנקה אותו וממשיכה להזמנה.
+            if (verificationService.verify(input)) {
+                verificationService.clear();
+                continueAfterVerification();
+            } else {
+                appendMessage(isEnglish ? "Invalid verification code. Please try again:" : "קוד אימות שגוי. נא לנסות שוב:");
+            }
+        } else if (chatState == 6) {
+            // במשלוח בלבד נבדק שהכתובת מכילה רחוב מרשימת אזור השירות.
             boolean isJerusalem = false;
             try (BufferedReader br = new BufferedReader(new FileReader("streets.txt"))) {
                 String line;
@@ -329,13 +340,26 @@ public class GoldenBurgerBot extends Application {
                 customerAddress = input;
                 showCouponAnnouncement();
                 showMenuCategories();
-                chatState = 5;
+                chatState = 7;
             } else appendMessage(isEnglish ? "Not in our delivery area!" : "לא באזור שלנו!");
         }
 
         inputField.requestFocus();
     }
 
+    // נקראת אחרי אימות מוצלח: משלוח עובר לכתובת, ואיסוף עובר ישירות לתפריט.
+    private void continueAfterVerification() {
+        if (orderType.equals("משלוח") || orderType.equals("Delivery")) {
+            appendMessage(isEnglish ? "Delivery address?" : "כתובת למשלוח?");
+            chatState = 6;
+        } else {
+            showCouponAnnouncement();
+            showMenuCategories();
+            chatState = 7;
+        }
+    }
+
+    // נפתחת מקוד המנהל ומציגה הזמנות קודמות וסיכום הכנסות מקובץ CSV.
     private void openAdminDashboard() {
         Stage adminStage = new Stage();
         adminStage.setTitle(isEnglish ? "Admin Dashboard" : "מערכת ניהול - גולדן בורגר");
@@ -384,6 +408,7 @@ public class GoldenBurgerBot extends Application {
         adminStage.show();
     }
 
+    // מודיעה בצ'אט על הקופונים הזמינים לפני שהמשתמש מתחיל לבחור מנות.
     private void showCouponAnnouncement() {
         if (isEnglish) {
             appendMessage("✨ Special Offers in Cart! ✨\n\n• 10% off first order with code: GOLDEN10\n• Support special - 20% off with code: VIP\n\n(Enter the code at checkout)");
@@ -392,6 +417,7 @@ public class GoldenBurgerBot extends Application {
         }
     }
 
+    // מציגה את קטגוריות התפריט וכפתור הסל; נקראת גם לאחר שינוי בסל.
     private void showMenuCategories() {
         topPane.getChildren().clear();
         String[] cats = isEnglish ? new String[]{"Meals", "Burgers", "Sides", "Drinks"} : new String[]{"ארוחות", "המבורגרים", "תוספות", "שתייה"};
@@ -404,7 +430,7 @@ public class GoldenBurgerBot extends Application {
             topPane.getChildren().add(b);
         }
 
-        double currentTotal = Math.round((orderList.calculateTotal() - (orderList.calculateTotal() * discount)) * 100.0) / 100.0;
+        double currentTotal = orderList.calculateFinalTotal();
         String cartTxt = isEnglish ? "🛒 Cart (" + orderList.size() + ") - ₪" + String.format("%.2f", currentTotal) : "🛒 סל (" + orderList.size() + ") - " + String.format("%.2f", currentTotal) + "₪";
 
         Button cart = new Button(cartTxt);
@@ -414,6 +440,7 @@ public class GoldenBurgerBot extends Application {
         topPane.getChildren().add(cart);
     }
 
+    // מציגה רק את הפריטים השייכים לקטגוריה שנבחרה ומאפשרת לבחור מנה.
     private void showItemsForCategory(String cat) {
         topPane.getChildren().clear();
         for (MenuItem item : menu) {
@@ -483,6 +510,7 @@ public class GoldenBurgerBot extends Application {
     }
 
     // === חלון פופ-אפ להצגת תמונה מוגדלת בלחיצה ארוכה ===
+    // נפתחת בלחיצה על תמונת פריט ומציגה תמונה ותיאור מוגדלים.
     private void showLargeImagePopup(MenuItem item) {
         if (item.imagePath == null || item.imagePath.isEmpty()) return;
         File imgFile = new File(item.imagePath);
@@ -520,10 +548,11 @@ public class GoldenBurgerBot extends Application {
         popupStage.show();
     }
 
+    // מוסיפה תוספות/שתייה ישירות, ולמנות עיקריות פותחת חלון התאמה לפני הוספה לסל.
     private void openCustomizationWindow(MenuItem item) {
         if (item.category.equals("שתייה") || item.category.equals("תוספות") || item.category.equals("Sides") || item.category.equals("Drinks")) {
             orderList.add(item.name, item.price);
-            double currentTotal = Math.round((orderList.calculateTotal() - (orderList.calculateTotal() * discount)) * 100.0) / 100.0;
+            double currentTotal = orderList.calculateFinalTotal();
             appendMessage(isEnglish ? "Added: " + item.name + " | Total: ₪" + String.format("%.2f", currentTotal) : "הוספת: " + item.name + " | סה\"כ בינתיים: " + String.format("%.2f", currentTotal) + "₪");
             showMenuCategories();
             return;
@@ -603,7 +632,7 @@ public class GoldenBurgerBot extends Application {
             String orderString = item.name + modifications;
             orderList.add(orderString, item.price);
 
-            double currentTotal = Math.round((orderList.calculateTotal() - (orderList.calculateTotal() * discount)) * 100.0) / 100.0;
+            double currentTotal = orderList.calculateFinalTotal();
             appendMessage((isEnglish ? "Added: " : "הוספת: ") + orderString + (isEnglish ? " | Total: ₪" : " | סה\"כ בינתיים: ") + String.format("%.2f", currentTotal) + (isEnglish ? "" : "₪"));
 
             customStage.close();
@@ -616,6 +645,7 @@ public class GoldenBurgerBot extends Application {
         customStage.show();
     }
 
+    // מציגה את פריטי ההזמנה, מאפשרת הסרה/ניקוי, החלת קופון ומעבר לסיום.
     private void showCart() {
         Stage cartStage = new Stage();
         cartStage.setTitle(isEnglish ? "Cart - Golden Burger" : "סל קניות - גולדן בורגר");
@@ -646,7 +676,7 @@ public class GoldenBurgerBot extends Application {
                 removeBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #FF5555; -fx-cursor: hand; -fx-font-size: 12px;");
                 removeBtn.setOnAction(e -> {
                     orderList.removeExact(item);
-                    if (orderList.isEmpty()) discount = 0.0;
+                    if (orderList.isEmpty()) orderList.setDiscount(0.0);
                     cartStage.close(); showCart(); showMenuCategories();
                 });
 
@@ -669,10 +699,10 @@ public class GoldenBurgerBot extends Application {
         Label totalLabel = new Label();
         totalLabel.setStyle("-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 20px; -fx-padding: 10 0 20 0;");
 
+        // מחשב מחדש את הסכום לאחר שינוי פריט או הנחה ומעדכן את התצוגה.
         Runnable updateTotalDisplay = () -> {
-            double rawTotal = orderList.calculateTotal();
-            double finalPrice = Math.round((rawTotal - (rawTotal * discount)) * 100.0) / 100.0;
-            if (discount > 0 && !orderList.isEmpty()) {
+            double finalPrice = orderList.calculateFinalTotal();
+            if (orderList.getDiscount() > 0 && !orderList.isEmpty()) {
                 totalLabel.setText((isEnglish ? "Total: ₪" : "סה\"כ לתשלום: ") + String.format("%.2f", finalPrice) + (isEnglish ? " (Discounted)" : "₪ (אחרי הנחה)"));
             } else {
                 totalLabel.setText((isEnglish ? "Total: ₪" : "סה\"כ לתשלום: ") + String.format("%.2f", finalPrice) + (isEnglish ? "" : "₪"));
@@ -680,19 +710,20 @@ public class GoldenBurgerBot extends Application {
         };
         updateTotalDisplay.run();
 
+        // הקופון משנה את אחוז ההנחה בשירות ההזמנה; קוד שגוי מאפס את ההנחה.
         applyBtn.setOnAction(e -> {
             if (orderList.isEmpty()) return;
             String code = couponInput.getText().trim().toUpperCase();
             if (code.equals("GOLDEN10")) {
-                discount = 0.10;
+                orderList.setDiscount(0.10);
                 msgLabel.setText(isEnglish ? "Coupon applied! 10% off." : "קופון הופעל! 10% הנחה.");
                 msgLabel.setStyle("-fx-text-fill: #4CAF50;");
             } else if (code.equals("VIP")) {
-                discount = 0.20;
+                orderList.setDiscount(0.20);
                 msgLabel.setText(isEnglish ? "VIP Support applied! 20% off." : "מבצע תמיכה הופעל! 20% הנחה.");
                 msgLabel.setStyle("-fx-text-fill: #4CAF50;");
             } else {
-                discount = 0.0;
+                orderList.setDiscount(0.0);
                 msgLabel.setText(isEnglish ? "Invalid coupon." : "קופון לא חוקי או פג תוקף.");
                 msgLabel.setStyle("-fx-text-fill: #FF5555;");
             }
@@ -713,7 +744,7 @@ public class GoldenBurgerBot extends Application {
         Button clearBtn = new Button(isEnglish ? "🗑️ Clear Cart" : "🗑️ נקה סל");
         clearBtn.setStyle("-fx-background-color: #FF5555; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 10; -fx-cursor: hand;");
         clearBtn.setOnAction(e -> {
-            orderList.clear(); discount = 0.0; cartStage.close(); showCart(); showMenuCategories();
+            orderList.clear(); orderList.setDiscount(0.0); cartStage.close(); showCart(); showMenuCategories();
         });
 
         Button finishBtn = new Button(isEnglish ? "Checkout" : "תשלום וסיום");
@@ -726,6 +757,7 @@ public class GoldenBurgerBot extends Application {
             actionButtonsBox.getChildren().addAll(clearBtn, finishBtn);
         }
 
+        // בסיום נוצר מספר הזמנה אקראי והנתונים עוברים לשמירה ולהפקת קבלה.
         finishBtn.setOnAction(e -> {
             int orderId = 1000 + new Random().nextInt(9000);
             finishOrder(orderId);
@@ -737,9 +769,9 @@ public class GoldenBurgerBot extends Application {
         cartStage.show();
     }
 
+    // מסיימת הזמנה: שומרת CSV וקבלה, מציגה אישור ונועלת את המשך הקלט.
     private void finishOrder(int orderId) {
-        double rawTotal = orderList.calculateTotal();
-        double finalPrice = Math.round((rawTotal - (rawTotal * discount)) * 100.0) / 100.0;
+        double finalPrice = orderList.calculateFinalTotal();
 
         try (PrintWriter csvWriter = new PrintWriter(new FileWriter("orders.csv", true))) {
             csvWriter.println(orderId + "," + customerName + "," + customerPhone + "," + orderType + "," + finalPrice);
@@ -767,6 +799,7 @@ public class GoldenBurgerBot extends Application {
         showReceiptPopup(orderId);
     }
 
+    // בונה ומחזירה את טקסט הקבלה עם פרטי הלקוח, הפריטים, ההנחה והסכום הסופי.
     private String buildReceiptString(int orderId) {
         String content = isEnglish ? "=== Golden Burger Receipt ===\n" : "=== קבלת הזמנה - גולדן בורגר ===\n";
         content += (isEnglish ? "Order ID: #" : "מספר הזמנה: #") + orderId + "\n" +
@@ -783,17 +816,18 @@ public class GoldenBurgerBot extends Application {
         content += "--------------------------------\n";
 
         double rawTotal = orderList.calculateTotal();
-        double finalPrice = Math.round((rawTotal - (rawTotal * discount)) * 100.0) / 100.0;
+        double finalPrice = orderList.calculateFinalTotal();
 
-        if (discount > 0) {
+        if (orderList.getDiscount() > 0) {
             content += (isEnglish ? "Subtotal: ₪" : "סה\"כ לפני הנחה: ") + String.format("%.2f", rawTotal) + (isEnglish ? "\n" : " ש\"ח\n");
-            content += (isEnglish ? "Discount: " : "הנחה: ") + (int)(discount * 100) + "%\n";
+            content += (isEnglish ? "Discount: " : "הנחה: ") + (int)(orderList.getDiscount() * 100) + "%\n";
         }
 
         content += (isEnglish ? "Total: ₪" : "סה\"כ לתשלום: ") + String.format("%.2f", finalPrice) + (isEnglish ? "\n================================\n" : " ש\"ח\n================================\n");
         return content;
     }
 
+    // מציגה בחלון נפרד את טקסט הקבלה שנבנה עבור ההזמנה שהסתיימה.
     private void showReceiptPopup(int orderId) {
         Stage receiptStage = new Stage();
         receiptStage.setTitle(isEnglish ? "Digital Receipt" : "קבלה דיגיטלית - גולדן בורגר");
@@ -814,83 +848,4 @@ public class GoldenBurgerBot extends Application {
         receiptStage.show();
     }
 
-    private static class MenuItem {
-        String name;
-        double price;
-        String category;
-        String description;
-        String imagePath;
-
-        public MenuItem(String name, double price, String category, String description, String imagePath) {
-            this.name = name;
-            this.price = price;
-            this.category = category;
-            this.description = description;
-            this.imagePath = IMAGE_DIR + imagePath;
-        }
-    }
-
-    private static class OrderNode {
-        String itemDetails;
-        double price;
-        OrderNode next;
-
-        public OrderNode(String itemDetails, double price) {
-            this.itemDetails = itemDetails;
-            this.price = price;
-            this.next = null;
-        }
-    }
-
-    private static class OrderLinkedList {
-        private OrderNode head;
-        private int size = 0;
-
-        public void add(String itemDetails, double price) {
-            OrderNode newNode = new OrderNode(itemDetails, price);
-            if (head == null) { head = newNode; }
-            else {
-                OrderNode current = head;
-                while (current.next != null) { current = current.next; }
-                current.next = newNode;
-            }
-            size++;
-        }
-
-        public void removeExact(String exactItem) {
-            if (head == null) return;
-            if (head.itemDetails.equals(exactItem)) {
-                head = head.next;
-                size--; return;
-            }
-            OrderNode current = head;
-            while (current.next != null) {
-                if (current.next.itemDetails.equals(exactItem)) {
-                    current.next = current.next.next;
-                    size--; return;
-                }
-                current = current.next;
-            }
-        }
-
-        public void clear() { head = null; size = 0; }
-        public boolean isEmpty() { return head == null; }
-        public int size() { return size; }
-        public double calculateTotal() { return calcRecursive(head); }
-
-        private double calcRecursive(OrderNode node) {
-            if (node == null) return 0;
-            return node.price + calcRecursive(node.next);
-        }
-
-        public ArrayList<String> getItemsAsList() {
-            ArrayList<String> list = new ArrayList<>();
-            OrderNode current = head;
-            while (current != null) {
-                list.add(current.itemDetails);
-                current = current.next;
-            }
-            return list;
-        }
-    }
 }
